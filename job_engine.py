@@ -527,6 +527,61 @@ Links: [[Rules/core_rules]], [[Preferences/workflow]], [[Preferences/tech_stack]
     SECOND_BRAIN_TRACKER.parent.mkdir(parents=True, exist_ok=True)
     SECOND_BRAIN_TRACKER.write_text(note_content.strip() + "\n", encoding="utf-8")
 
+
+def generate_upwork_proposal(
+    job_title: str,
+    job_description: str = "",
+    client_name: str = "",
+    custom_focus: str = ""
+) -> str:
+    """Generate high-converting, concise Upwork proposal for Top-Rated Backend Engineer."""
+    salutation = f"Hi {client_name}," if client_name and client_name != "Client" else "Hi there,"
+    
+    desc_low = (job_title + " " + job_description + " " + custom_focus).lower()
+    
+    if any(k in desc_low for k in ["k8s", "kubernetes", "cloud", "docker", "infrastructure", "s3", "devops", "cloudstack"]):
+        proof_point = (
+            "Over the past 4+ years as a Core Backend Engineer on Cloudraya V2 (IaaS/PaaS cloud platform), "
+            "I have engineered managed Kubernetes cluster provisioning, S3-compatible object storage engines, "
+            "and hypervisor orchestration handling production workloads."
+        )
+    elif any(k in desc_low for k in ["iot", "real-time", "telemetry", "sensor", "websocket"]):
+        proof_point = (
+            "I previously built the real-time telemetry backend for the Suramadu Bridge IoT system, "
+            "handling high-throughput structural vibration and weather sensor streams with sub-second ingestion."
+        )
+    elif any(k in desc_low for k in ["erp", "finance", "billing", "metering", "invoice", "payment"]):
+        proof_point = (
+            "I designed and deployed automated usage-based metering and billing calculation engines for cloud services, "
+            "as well as enterprise ERP modules for major industrial corporations (WIKA & Petrokimia Gresik)."
+        )
+    else:
+        proof_point = (
+            "With 6+ years of specialized backend experience across Go (Golang), PHP/Laravel, Node.js, and PostgreSQL, "
+            "I design clean, modular APIs and distributed services optimized for performance and maintainability."
+        )
+
+    proposal = f"""{salutation}
+
+I noticed you're looking for an experienced backend engineer for "{job_title}". {proof_point}
+
+Why I'm a strong fit for this project:
+1. **Proven Production Track Record**: 6+ years building scalable APIs (REST/gRPC), database schemas (PostgreSQL/MySQL/Redis), and automated testing suites (PHPUnit/Go testing).
+2. **Clean & Resilient Architecture**: Strong emphasis on clean code, rate-limiting, secure authentication (JWT/OAuth), and zero-downtime reliability.
+3. **Proactive Communication**: Fast turnaround times, clear milestone progress updates, and async-friendly collaboration.
+
+Portfolio & Live Proof:
+- GitHub: https://github.com/fahmirizal229
+- Profile & Case Studies: https://arusuka.my.id
+
+I'd be glad to hop on a quick 10-minute chat or review your repository/requirements to share an immediate technical roadmap. When would be a convenient time for you?
+
+Best regards,
+Fahmi Rizal
+Backend & Cloud Infrastructure Engineer
+"""
+    return proposal
+
 def generate_cover_letter(
     company: str,
     role: str,

@@ -1,7 +1,7 @@
 #!/home/arusuka/.crawl4ai-env/bin/python
 """
 Playwright Stealth Job & Web Scraper
-Extracts clean job details, requirements, company, and role from protected websites (Jobstreet, LinkedIn, Glints, etc.)
+Extracts clean job details, requirements, company, and role from protected websites (Upwork, Jobstreet, LinkedIn, Glints, etc.)
 """
 
 import sys
@@ -33,9 +33,73 @@ Object.defineProperty(navigator, 'plugins', {
 
 // Mock languages
 Object.defineProperty(navigator, 'languages', {
-    get: () => ['id-ID', 'id', 'en-US', 'en']
+    get: () => ['en-US', 'en', 'id-ID', 'id']
 });
 """
+
+async def extract_upwork(page) -> Dict[str, Any]:
+    """Custom extractor for Upwork Job Postings."""
+    title = ""
+    company = "Upwork Client"
+    location = "Worldwide / Remote"
+    description = ""
+    budget = ""
+
+    try:
+        await page.wait_for_selector('h1, h4, [data-test="job-title"], .job-description', timeout=8000)
+    except Exception:
+        pass
+
+    content = await page.content()
+    soup = BeautifulSoup(content, 'html.parser')
+
+    # 1. Job Title
+    title_el = soup.find('h4') or soup.find('h1') or soup.find(attrs={'data-test': 'job-title'})
+    if title_el:
+        title = title_el.get_text(strip=True)
+
+    # 2. Budget / Rate
+    budget_el = soup.find(attrs={'data-test': 'budget'}) or soup.find(attrs={'data-test': 'hourly-rate'}) or soup.find(attrs={'data-test': 'job-type'})
+    if budget_el:
+        budget = budget_el.get_text(strip=True)
+
+    # 3. Client Location
+    loc_el = soup.find(attrs={'data-test': 'client-country'}) or soup.find(attrs={'data-qa': 'client-location'})
+    if loc_el:
+        location = f"Client: {loc_el.get_text(strip=True)}"
+
+    # 4. Job Description & Skills
+    desc_el = soup.find(attrs={'data-test': 'job-description'}) or soup.find('div', class_=re.compile(r'job-description', re.I))
+    if desc_el:
+        for li in desc_el.find_all('li'):
+            li.insert_before('\n• ')
+        description = desc_el.get_text(separator='\n', strip=True)
+    else:
+        main_el = soup.find('main') or soup.find('article') or soup.find('body')
+        description = main_el.get_text(separator='\n', strip=True) if main_el else ""
+
+    # 5. Extract Skills tags
+    skill_tags = []
+    for token in soup.find_all(attrs={'data-test': re.compile(r'attr-item|token|skill', re.I)}):
+        t_text = token.get_text(strip=True)
+        if t_text and len(t_text) < 35 and t_text not in skill_tags:
+            skill_tags.append(t_text)
+
+    if skill_tags:
+        description += f"\n\nRequired Skills: {', '.join(skill_tags[:12])}"
+    if budget:
+        description = f"Budget/Rate: {budget}\n\n" + description
+
+    description = re.sub(r'\n{3,}', '\n\n', description)
+
+    return {
+        "platform": "Upwork (USD)",
+        "title": title or "Upwork Project",
+        "company": company,
+        "location": location,
+        "salary": budget or "USD (Competitive)",
+        "description": description[:4000]
+    }
 
 async def extract_jobstreet(page) -> Dict[str, Any]:
     """Custom extractor for Jobstreet / SEEK layout."""
@@ -136,7 +200,7 @@ async def scrape_job_url(url: str, timeout: int = 20) -> Dict[str, Any]:
         context = await browser.new_context(
             user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
             viewport={'width': 1920, 'height': 1080},
-            locale='id-ID',
+            locale='en-US',
             timezone_id='Asia/Jakarta'
         )
         page = await context.new_page()
@@ -156,7 +220,9 @@ async def scrape_job_url(url: str, timeout: int = 20) -> Dict[str, Any]:
             await page.goto(url, wait_until="domcontentloaded", timeout=timeout * 1000)
             await asyncio.sleep(2)
 
-            if "jobstreet" in url.lower():
+            if "upwork.com" in url.lower():
+                data = await extract_upwork(page)
+            elif "jobstreet" in url.lower():
                 data = await extract_jobstreet(page)
             else:
                 data = await extract_generic(page, url)
@@ -166,6 +232,7 @@ async def scrape_job_url(url: str, timeout: int = 20) -> Dict[str, Any]:
                 "title": data.get("title", ""),
                 "company": data.get("company", ""),
                 "location": data.get("location", ""),
+                "salary": data.get("salary", ""),
                 "description": data.get("description", ""),
                 "platform": data.get("platform", "Web")
             })

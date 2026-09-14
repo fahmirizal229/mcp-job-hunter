@@ -121,6 +121,20 @@ TOOLS = [
         }
     },
     {
+        "name": "job_generate_upwork_proposal",
+        "description": "Buat draf proposal penawaran (cover letter) Upwork yang ringkas, berkonversi tinggi, dan terpersonalisasi untuk proyek freelance backend/cloud/DevOps.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "job_title": {"type": "string", "description": "Judul postingan proyek di Upwork."},
+                "job_description": {"type": "string", "description": "Deskripsi atau requirement proyek di Upwork."},
+                "client_name": {"type": "string", "description": "Nama klien (jika tertera pada review/history, misal: 'John'). Default kosong."},
+                "custom_focus": {"type": "string", "description": "Fokus khusus yang ingin ditonjolkan (misal: 'Kubernetes migration', 'FastAPI backend', 'API Optimization')."}
+            },
+            "required": ["job_title"]
+        }
+    },
+    {
         "name": "job_generate_cover_letter",
         "description": "Buat draf Surat Lamaran / Cover Letter profesional yang disesuaikan dengan profil Backend Engineer (PHP/Laravel, Node.js, Go, Python, API Architecture, SQL/Redis Database).",
         "inputSchema": {
@@ -268,6 +282,19 @@ def handle_call_tool(name: str, args: Dict[str, Any]) -> str:
             f"📝 **Poin CV yang Direkomendasikan (Tailored Bullets)**:\n{cv_pts}\n\n"
             f"💡 **Tips Wawancara & Rekomendasi Jawaban**:\n{tips}"
         )
+
+    elif name == "job_generate_upwork_proposal":
+        title = args["job_title"]
+        desc = args.get("job_description", "")
+        c_name = args.get("client_name", "")
+        focus = args.get("custom_focus", "")
+        proposal = job_engine.generate_upwork_proposal(
+            job_title=title,
+            job_description=desc,
+            client_name=c_name,
+            custom_focus=focus
+        )
+        return f"💼 **DRAFT PROPOSAL UPWORK (TAILORED):**\n\n```text\n{proposal}\n```\n\n💡 *Tips: Sesuaikan 1-2 baris pertama jika klien menyertakan instruksi/pertanyaan khusus.*"
 
     elif name == "job_generate_cover_letter":
         comp = args["company"]
