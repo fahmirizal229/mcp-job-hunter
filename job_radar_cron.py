@@ -100,13 +100,22 @@ def fetch_and_categorize_jobs() -> Tuple[List[Dict[str, Any]], List[Dict[str, An
         elif any(k in full_text for k in ["node", "nodejs", "typescript", "express"]):
             boost += 9
 
-        # 2. Location Boost: Surabaya Top Priority (+22), Indonesia/Remote ID (+10)
+                # 2. Location Boost: Surabaya Top (+22), Jakarta Onsite/Remote (+14), Global Fully Remote (+8)
         if any(k in full_text for k in ["surabaya", "sidoarjo", "gresik", "jawa timur", "jatim"]):
             boost += 22
-            location = "📍 Surabaya"
-        elif any(k in full_text for k in ["indonesia", "jakarta", "remote id", "wfh indonesia"]):
-            boost += 10
+            location = "📍 Surabaya (Home Base)"
+        elif any(k in full_text for k in ["jakarta", "jabodetabek"]):
+            boost += 14
+            location = "🏙️ Jakarta (Onsite/Hybrid/Remote)"
+        elif any(k in full_text for k in ["indonesia", "remote id", "wfh indonesia"]):
+            boost += 12
             location = "🇮🇩 Remote Indonesia"
+        else:
+            # Overseas: only accept if fully remote
+            if any(k in full_text for k in ["relocation", "visa sponsorship", "onsite in us", "onsite in uk", "onsite in singapore", "onsite in germany", "must be based in"]):
+                continue  # Skip overseas jobs that require physical onsite relocation
+            location = "🌍 Global (Fully Remote)"
+            boost += 8
 
         if any(k in role.lower() for k in ["backend", "engineer", "developer"]):
             boost += 6
