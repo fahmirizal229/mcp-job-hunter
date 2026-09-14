@@ -636,6 +636,7 @@ def main():
         print("  job-hunter update <app_id> <status> [--schedule 'Jadwal'] [--notes 'Catatan baru']")
         print("  job-hunter kanban")
         print("  job-hunter cover-letter <company> <role> [--lang id|en]")
+        print("  job-hunter upwork-proposal <job_title> [job_desc] [--client <name>] [--focus <tech>]")
         sys.exit(1)
 
     cmd = sys.argv[1].lower()
@@ -740,6 +741,21 @@ def main():
             lang = sys.argv[sys.argv.index("--lang") + 1]
         print(f"\n📄 === DRAFT SURAT LAMARAN / COVER LETTER ({comp} - {role}) ===\n")
         print(generate_cover_letter(comp, role, language=lang))
+
+    elif cmd in ("upwork-proposal", "upwork", "up"):
+        if len(sys.argv) < 3:
+            print("Error: Harap masukkan judul job Upwork.")
+            sys.exit(1)
+        title = sys.argv[2]
+        desc = sys.argv[3] if len(sys.argv) > 3 and not sys.argv[3].startswith("--") else ""
+        c_name = ""
+        focus = ""
+        if "--client" in sys.argv:
+            c_name = sys.argv[sys.argv.index("--client") + 1]
+        if "--focus" in sys.argv:
+            focus = sys.argv[sys.argv.index("--focus") + 1]
+        print(f"\n💼 === DRAFT PROPOSAL UPWORK ({title}) ===\n")
+        print(generate_upwork_proposal(title, job_description=desc, client_name=c_name, custom_focus=focus))
 
 if __name__ == "__main__":
     main()
