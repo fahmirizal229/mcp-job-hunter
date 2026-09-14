@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Job Radar Morning Digest - Automated Daily Remote & Freelance Jobs for Fahmi.
-Scans multiple global remote aggregators, separates Full-Time vs Freelance/Contract,
-computes CV match scores (PHP > Go > Node.js priority),
+Job Radar Morning Digest - Automated Daily Remote, Surabaya & Freelance Jobs for Fahmi.
+Scans multiple global remote & local aggregators (Surabaya priority),
+separates Full-Time vs Freelance/Contract,
+computes CV match scores (PHP > Go > Node.js, Surabaya > Remote ID > USD),
 and sends a clean, compact single-message summary to Telegram at 07:30 WIB.
 """
 
@@ -47,11 +48,12 @@ TELEGRAM_BOT_TOKEN = env.get("WA_TELEGRAM_BOT_TOKEN") or env.get("TELEGRAM_BOT_T
 TELEGRAM_CHAT_ID = env.get("WA_TELEGRAM_CHAT_ID") or env.get("TELEGRAM_HOME_CHANNEL") or "6463565617"
 
 def fetch_and_categorize_jobs() -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-    """Fetches jobs and separates them into Full-Time vs Freelance/Contract lists."""
-    queries = ["php", "laravel", "golang", "backend", "nodejs", "kubernetes", "freelance", "contract"]
+    """Fetches jobs and separates them into Full-Time vs Freelance/Contract lists with Surabaya priority."""
+    queries = ["php", "laravel", "golang", "backend", "nodejs", "surabaya", "freelance"]
     all_jobs = []
     seen_urls = set()
 
+    # 1. Fetch Remote Aggregators
     for q in queries:
         try:
             results = job_engine.search_remote_jobs(query=q, limit=8)
@@ -61,7 +63,18 @@ def fetch_and_categorize_jobs() -> Tuple[List[Dict[str, Any]], List[Dict[str, An
                     seen_urls.add(url)
                     all_jobs.append(j)
         except Exception as e:
-            print(f"[Job Radar] Error searching for {q}: {e}", file=sys.stderr)
+            print(f"[Job Radar] Error searching remote for {q}: {e}", file=sys.stderr)
+
+    # 2. Fetch Local Surabaya & Indonesia Aggregators
+    try:
+        local_results = job_engine.search_local_jobs(query="backend developer", location="Surabaya", limit=6)
+        for j in local_results:
+            url = j.get("url", "")
+            if url and url not in seen_urls:
+                seen_urls.add(url)
+                all_jobs.append(j)
+    except Exception as e:
+        print(f"[Job Radar] Error searching local jobs: {e}", file=sys.stderr)
 
     fulltime_jobs = []
     freelance_jobs = []
@@ -69,15 +82,16 @@ def fetch_and_categorize_jobs() -> Tuple[List[Dict[str, Any]], List[Dict[str, An
     for j in all_jobs:
         role = j.get("role") or j.get("title", "Backend Developer")
         desc = j.get("description_snippet", "") + " " + " ".join(j.get("tags", []))
+        location = j.get("location", "Surabaya / Remote")
         tags_str = " ".join(j.get("tags", [])).lower()
-        full_text = (role + " " + desc + " " + tags_str).lower()
+        full_text = (role + " " + desc + " " + location + " " + tags_str).lower()
 
         # Calculate CV Match
         match_res = job_engine.analyze_job_match(role=role, job_description=desc)
         match_score = match_res.get("match_percentage", 60)
         matched_skills = match_res.get("matched_skills", [])[:3]
 
-        # Scoring boost based on user language preference: PHP > Go > Node.js
+        # 1. Language Boost: PHP/Laravel (+18) -> Go (+14) -> Node.js (+9)
         boost = 0
         if any(k in full_text for k in ["php", "laravel", "lumen"]):
             boost += 18
@@ -86,18 +100,24 @@ def fetch_and_categorize_jobs() -> Tuple[List[Dict[str, Any]], List[Dict[str, An
         elif any(k in full_text for k in ["node", "nodejs", "typescript", "express"]):
             boost += 9
 
+        # 2. Location Boost: Surabaya Top Priority (+22), Indonesia/Remote ID (+10)
+        if any(k in full_text for k in ["surabaya", "sidoarjo", "gresik", "jawa timur", "jatim"]):
+            boost += 22
+            location = "📍 Surabaya"
+        elif any(k in full_text for k in ["indonesia", "jakarta", "remote id", "wfh indonesia"]):
+            boost += 10
+            location = "🇮🇩 Remote Indonesia"
+
         if any(k in role.lower() for k in ["backend", "engineer", "developer"]):
             boost += 6
-        if any(k in role.lower() for k in ["kubernetes", "cloud", "platform", "s3"]):
-            boost += 4
 
         final_score = min(99, match_score + boost)
 
         item = {
             "company": j.get("company", "Tech Company").strip(),
             "role": role.strip(),
-            "salary": j.get("salary", "USD Kompetitif").strip(),
-            "location": j.get("location", "Worldwide Remote").strip(),
+            "salary": j.get("salary", "Kompetitif").strip(),
+            "location": location.strip(),
             "url": j.get("url", ""),
             "score": final_score,
             "matched_skills": matched_skills,
@@ -122,7 +142,7 @@ def fetch_and_categorize_jobs() -> Tuple[List[Dict[str, Any]], List[Dict[str, An
     return fulltime_jobs[:3], freelance_jobs[:3]
 
 def format_telegram_message(fulltime: List[Dict[str, Any]], freelance: List[Dict[str, Any]]) -> str:
-    """Formats separated Full-Time and Freelance jobs into a compact single message."""
+    """Formats separated Full-Time and Freelance jobs into a compact single message with Surabaya priority."""
     now = datetime.now()
     days_id = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
     months_id = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
@@ -132,37 +152,39 @@ def format_telegram_message(fulltime: List[Dict[str, Any]], freelance: List[Dict
 
     lines = [
         f"🎯 *RADAR LOKER & FREELANCE HARIAN*",
-        f"📅 _{date_str} • Kurasi PHP ➔ Go ➔ Node.js_",
+        f"📅 _{date_str} • Prioritas Surabaya / Remote ID / Global_",
         "",
         "━━━━━━━━━━━━━━━━━━━━━━",
-        "💼 *[LOWONGAN FULL-TIME REMOTE]*"
+        "💼 *[LOWONGAN FULL-TIME]*"
     ]
 
     for idx, j in enumerate(fulltime, 1):
         comp = j["company"]
         role = j["role"]
         salary = j["salary"]
+        loc = j["location"]
         score = j["score"]
         url = j["url"]
         skills = ", ".join(j["matched_skills"]) if j["matched_skills"] else "Backend"
 
-        lines.append(f"{idx}. *{role}* — `{comp}`")
+        lines.append(f"{idx}. *{role}* — `{comp}` ({loc})")
         lines.append(f"   💰 `{salary}` | 📊 *Match: {score}%* ({skills})")
         lines.append(f"   🔗 [Apply Full-Time]({url})")
 
     lines.append("")
     lines.append("━━━━━━━━━━━━━━━━━━━━━━")
-    lines.append("🛠️ *[PROJECT FREELANCE & KONTRAK USD]*")
+    lines.append("🛠️ *[PROJECT FREELANCE & KONTRAK]*")
 
     for idx, j in enumerate(freelance, 1):
         comp = j["company"]
         role = j["role"]
         salary = j["salary"]
+        loc = j["location"]
         score = j["score"]
         url = j["url"]
         skills = ", ".join(j["matched_skills"]) if j["matched_skills"] else "Backend"
 
-        lines.append(f"{idx}. *{role}* — `{comp}`")
+        lines.append(f"{idx}. *{role}* — `{comp}` ({loc})")
         lines.append(f"   💰 `{salary}` | 📊 *Match: {score}%* ({skills})")
         lines.append(f"   🔗 [Ambil Project / Apply]({url})")
 
@@ -189,7 +211,7 @@ def send_telegram_alert(message: str) -> bool:
         with urllib.request.urlopen(req, timeout=10) as resp:
             res_data = json.loads(resp.read().decode("utf-8"))
             if res_data.get("ok"):
-                print("[Job Radar] ✅ Successfully delivered Dual-Pipeline Job Radar to Telegram!")
+                print("[Job Radar] ✅ Successfully delivered Surabaya-prioritized Job Radar to Telegram!")
                 return True
             else:
                 print(f"[Job Radar] Telegram error: {res_data}", file=sys.stderr)
@@ -200,7 +222,7 @@ def send_telegram_alert(message: str) -> bool:
 
 def main():
     send_flag = "--send" in sys.argv
-    print("[Job Radar] Scanning and categorizing Full-Time & Freelance remote jobs...")
+    print("[Job Radar] Scanning and categorizing Full-Time & Freelance jobs (Surabaya Priority)...")
     fulltime, freelance = fetch_and_categorize_jobs()
 
     if not fulltime and not freelance:
