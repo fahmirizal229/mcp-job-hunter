@@ -110,6 +110,17 @@ TOOLS = [
         }
     },
     {
+        "name": "job_analyze_url",
+        "description": "Ambil otomatis dan analisis lowongan kerja dari link/URL (Jobstreet, LinkedIn, Glints, Kalibrr, Dealls, dsb.) menggunakan Playwright stealth browser, lalu cocokkan langsung dengan profil CV Backend Engineer.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "URL link lowongan kerja (misal: https://id.jobstreet.com/id/job/...)"}
+            },
+            "required": ["url"]
+        }
+    },
+    {
         "name": "job_generate_cover_letter",
         "description": "Buat draf Surat Lamaran / Cover Letter profesional yang disesuaikan dengan profil Backend Engineer (PHP/Laravel, Node.js, Go, Python, API Architecture, SQL/Redis Database).",
         "inputSchema": {
@@ -226,6 +237,37 @@ def handle_call_tool(name: str, args: Dict[str, Any]) -> str:
         board_md = job_engine.generate_kanban_markdown()
         job_engine.sync_kanban_to_second_brain()
         return board_md
+
+    elif name == "job_analyze_url":
+        url = args.get("url", "")
+        analysis = job_engine.analyze_job_url(url)
+        if analysis.get("status") == "error":
+            return f"❌ {analysis.get('message', 'Gagal memproses URL lowongan.')}"
+
+        role = analysis.get("role", "Backend Engineer")
+        comp = analysis.get("company", "Perusahaan")
+        loc = analysis.get("location", "Indonesia")
+        matched = ", ".join(analysis["matched_skills"]) if analysis["matched_skills"] else "Tidak terdeteksi spesifik"
+        missing = ", ".join(analysis["missing_skills"]) if analysis["missing_skills"] else "Tidak ada gap signifikan"
+
+        proj_lines = []
+        for p in analysis.get("relevant_projects", []):
+            proj_lines.append(f"• **{p['title']}** (`{', '.join(p['tech'])}`)\n  ↳ {p['proof']}")
+        proj_str = "\n".join(proj_lines) if proj_lines else "• Pengalaman Backend Cloud & Distributed Systems (Wowrack Cloudraya V2 & Energeek)"
+
+        cv_pts = "\n".join(f"• {b}" for b in analysis.get("cv_bullet_points", []))
+        tips = "\n".join(f"• {t}" for t in analysis["interview_tips"]) if analysis["interview_tips"] else "• Siapkan demo arsitektur dan portfolio API terbaikmu."
+
+        return (
+            f"🎯 **ANALISIS LOWONGAN ({role.upper()} @ {comp})**\n\n"
+            f"📍 **Lokasi**: {loc} | 🌐 **Platform**: {analysis.get('platform')}\n"
+            f"📊 **Skor Kecocokan dengan CV**: **{analysis['match_percentage']}%** Match\n\n"
+            f"✅ **Tech Stack yang Sesuai**:\n`{matched}`\n\n"
+            f"⚠️ **Skill Tambahan/Ekspektasi Lowongan**:\n`{missing}`\n\n"
+            f"🏆 **Pengalaman & Proyek Relevan di CV Mas Fahmi**:\n{proj_str}\n\n"
+            f"📝 **Poin CV yang Direkomendasikan (Tailored Bullets)**:\n{cv_pts}\n\n"
+            f"💡 **Tips Wawancara & Rekomendasi Jawaban**:\n{tips}"
+        )
 
     elif name == "job_generate_cover_letter":
         comp = args["company"]

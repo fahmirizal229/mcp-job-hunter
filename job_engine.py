@@ -48,14 +48,7 @@ DEFAULT_USER_SKILLS = [
 import xml.etree.ElementTree as ET
 
 def search_remote_jobs(query: str = "backend", limit: int = 12, page: int = 1) -> List[Dict[str, Any]]:
-    """Search live global remote jobs via 6 top global aggregators:
-    1. We Work Remotely (WWR - World #1 Remote Dev Portal)
-    2. Himalayas (High-paying Remote Tech)
-    3. Remotive (Global WFH)
-    4. Jobicy (Global Remote Tech)
-    5. RemoteOK (USD Tech Jobs)
-    6. Arbeitnow (Remote EU/Global)
-    """
+    """Search live global remote jobs via 6 top global aggregators."""
     offset = max(0, (page - 1) * limit)
     needed = offset + limit
     jobs = []
@@ -82,7 +75,6 @@ def search_remote_jobs(query: str = "backend", limit: int = 12, page: int = 1) -
                 if not j_url or j_url in seen_urls:
                     continue
 
-                # WWR Title format: "Company Name: Job Title"
                 company = "Tech Company"
                 role = raw_title
                 if ":" in raw_title:
@@ -329,7 +321,6 @@ def analyze_job_match(
         if re.search(pattern, text_lower):
             matched_skills.append(skill)
 
-    # Detect other common industry requirements
     common_industry_skills = [
         "Kubernetes", "AWS", "GCP", "GraphQL", "Kafka", "RabbitMQ", "CI/CD",
         "TDD", "Unit Test", "Elasticsearch", "Clean Architecture", "SOLID",
@@ -344,7 +335,6 @@ def analyze_job_match(
             if not any(req.lower() == s.lower() for s in skills_pool):
                 missing_skills.append(req)
 
-    # Calculate match percentage
     total_relevant = len(set(matched_skills + missing_skills))
     if total_relevant == 0:
         match_percentage = 88
@@ -352,12 +342,10 @@ def analyze_job_match(
         match_percentage = int((len(matched_skills) / total_relevant) * 100)
         match_percentage = max(55, min(99, match_percentage))
 
-    # Match relevant portfolio projects from CV
     relevant_projects = []
     if USER_CV and "projects" in USER_CV:
         for p in USER_CV["projects"]:
             p_tech = [t.lower() for t in p.get("tech", [])]
-            # If project tech or title intersects with job description
             if any(t in text_lower for t in p_tech) or any(s.lower() in p_tech for s in matched_skills):
                 title_str = p.get("title", "Project")
                 desc_str = p.get("desc", "")
@@ -383,7 +371,6 @@ def analyze_job_match(
                 "evidence": desc_str
             })
 
-    # Generate tailored CV Bullet Points for this application
     cv_bullet_points = []
     if any(k in text_lower for k in ["cloud", "infrastructure", "kubernetes", "k8s", "s3", "storage", "billing", "vm", "virtualization"]):
         cv_bullet_points.append("Engineered core backend microservices for Cloudraya V2 multi-region IaaS/PaaS cloud platform, managing VM compute lifecycles, S3-compatible storage, and managed Kubernetes.")
@@ -397,7 +384,6 @@ def analyze_job_match(
     if not cv_bullet_points:
         cv_bullet_points.append("6+ years specializing in scalable backend systems (Go, PHP/Laravel, Node.js, Python), database query tuning, and distributed cloud services.")
 
-    # Generate tailored interview tips
     tips = []
     if any(s in ["Go", "Golang", "Node.js"] for s in matched_skills):
         tips.append("Jelaskan pengalaman handling concurrency, goroutines/async I/O, dan optimasi API throughput.")
@@ -420,6 +406,45 @@ def analyze_job_match(
         "interview_tips": tips,
         "interview_talking_points": tips
     }
+
+def scrape_job_posting(url: str) -> Dict[str, Any]:
+    """Scrapes a job posting using Playwright stealth engine."""
+    scraper_path = "/home/arusuka/mcp-job-hunter/playwright_scraper.py"
+    py_bin = "/home/arusuka/.crawl4ai-env/bin/python"
+    try:
+        import subprocess
+        out = subprocess.check_output([py_bin, scraper_path, url], timeout=30, text=True)
+        data = json.loads(out)
+        return data
+    except Exception as e:
+        return {
+            "status": "error",
+            "url": url,
+            "message": f"Gagal mengekstrak lowongan via Playwright: {e}"
+        }
+
+def analyze_job_url(url: str) -> Dict[str, Any]:
+    """Scrapes any job URL (Jobstreet, LinkedIn, Glints, etc.) and performs automatic CV matching analysis."""
+    scraped = scrape_job_posting(url)
+    if scraped.get("status") != "success":
+        return {
+            "status": "error",
+            "url": url,
+            "message": scraped.get("message", "Gagal membaca lowongan.")
+        }
+
+    title = scraped.get("title") or "Backend Engineer"
+    company = scraped.get("company") or "Perusahaan"
+    loc = scraped.get("location") or "Indonesia"
+    desc = scraped.get("description") or ""
+
+    analysis = analyze_job_match(title, desc)
+    analysis["company"] = company
+    analysis["location"] = loc
+    analysis["url"] = url
+    analysis["platform"] = scraped.get("platform", "Web")
+    analysis["raw_description"] = desc[:500]
+    return analysis
 
 def get_kanban_board_data() -> Dict[str, Any]:
     """Retrieve all applications organized by Kanban stages."""
@@ -492,6 +517,7 @@ Dokumen ini melacak seluruh proses pencarian kerja, pipeline lamaran, jadwal int
 
 ## 🛠️ CLI Quick Commands
 - `job-hunter search "backend developer"` : Cari lowongan remote / lokal.
+- `job-hunter match-url <URL>` : Ekstrak URL loker via Playwright dan cocokan dengan CV.
 - `job-hunter add "PT ABC" "Senior Backend Engineer" --location "Surabaya" --status "applied"` : Tambah lamaran.
 - `job-hunter update <ID> "tech_test" --schedule "Besok 14:00"` : Pindahkan status stage.
 - `job-hunter kanban` : Tampilkan papan kanban.
@@ -507,7 +533,7 @@ def generate_cover_letter(
     job_description: str = "",
     language: str = "id"
 ) -> str:
-    """Generate high-converting cover letter tailored for Backend Engineer profile (PHP, Node.js, Go, Python)."""
+    """Generate high-converting cover letter tailored for Backend Engineer profile."""
     if language.lower() == "en":
         return f"""Dear Hiring Team at {company},
 
@@ -549,6 +575,8 @@ def main():
     if len(sys.argv) < 2:
         print("Penggunaan Job Hunter CLI:")
         print("  job-hunter search <role> [--remote | --local <kota>]")
+        print("  job-hunter match-url <URL>")
+        print("  job-hunter scrape <URL>")
         print("  job-hunter add <company> <role> [--location 'Remote'] [--status 'applied'] [--notes 'catatan']")
         print("  job-hunter update <app_id> <status> [--schedule 'Jadwal'] [--notes 'Catatan baru']")
         print("  job-hunter kanban")
@@ -572,6 +600,35 @@ def main():
             for idx, j in enumerate(jobs, 1):
                 print(f"{idx}. [{j['platform']}] {j['role']} @ {j['company']} ({j['location']})")
                 print(f"   💰 Gaji: {j['salary']} | 🔗 Apply: {j['url']}\n")
+
+    elif cmd in ("match-url", "match"):
+        if len(sys.argv) < 3:
+            print("Error: Harap masukkan URL lowongan.")
+            sys.exit(1)
+        url = sys.argv[2]
+        print(f"\n🌐 Mengambil & Menganalisis Loker via Playwright Stealth: {url} ...")
+        res = analyze_job_url(url)
+        if res.get("status") == "error":
+            print(f"❌ {res.get('message')}")
+            sys.exit(1)
+
+        print(f"\n🎯 HASIL ANALISIS LOKER:")
+        print(f"🏢 Perusahaan: {res.get('company')} | Posisi: {res.get('role')} ({res.get('location')})")
+        print(f"📊 Skor Kecocokan CV: {res.get('match_percentage')}% Match\n")
+        print(f"✅ Tech Stack Cocok: {', '.join(res.get('matched_skills', []))}")
+        print(f"⚠️ Skill Tambahan: {', '.join(res.get('missing_skills', [])) or '-'}\n")
+        print("🏆 Proyek Relevan di CV:")
+        for p in res.get("relevant_projects", []):
+            print(f"  • {p['title']} ({', '.join(p['tech'])})")
+            print(f"    ↳ {p['proof']}")
+
+    elif cmd == "scrape":
+        if len(sys.argv) < 3:
+            print("Error: Harap masukkan URL lowongan.")
+            sys.exit(1)
+        url = sys.argv[2]
+        res = scrape_job_posting(url)
+        print(json.dumps(res, indent=2, ensure_ascii=False))
 
     elif cmd == "kanban":
         print("\n" + generate_kanban_markdown())
