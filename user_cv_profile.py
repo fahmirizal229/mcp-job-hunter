@@ -23,7 +23,8 @@ USER_PROFILE: Dict[str, Any] = {
         "VM compute & bare-metal, storage kompatibel S3, provisioning cluster Kubernetes, hingga automated metering & billing."
     ),
     "skills": {
-        "languages": ["Go (Golang)", "PHP", "Laravel", "Node.js", "TypeScript", "JavaScript", "Python (FastAPI)"],
+        "preferred_languages": ["PHP (Laravel)", "Go (Golang)", "Node.js"],
+        "languages": ["PHP", "Laravel", "Go (Golang)", "Node.js", "TypeScript", "JavaScript", "Python (FastAPI)"],
         "databases": ["PostgreSQL", "MySQL", "MariaDB", "Redis", "MongoDB", "SQLite", "S3 Object Storage"],
         "cloud_infra": ["Kubernetes (K8s)", "Docker", "Apache CloudStack", "Linux Server Administration", "Bitbucket CI/CD", "GitHub Actions", "Nginx"],
         "architecture_testing": [

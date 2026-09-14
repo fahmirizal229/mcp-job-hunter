@@ -26,15 +26,17 @@ def load_env(env_path: str) -> Dict[str, str]:
     if not os.path.exists(env_path):
         return {}
     res = {}
-    with open(env_path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            k, v = line.split("=", 1)
-            res[k.strip()] = v.strip().strip("\"'")
+    try:
+        with open(env_path, 'r', encoding='utf-8') as f:
+            for l in f:
+                l = l.strip()
+                if not l or l.startswith('#') or '=' not in l:
+                    continue
+                k, v = l.split('=', 1)
+                res[k.strip()] = v.strip().strip('"\'')
+    except Exception:
+        pass
     return res
-
 hermes_env = load_env("/home/arusuka/.hermes/.env")
 wa_env = load_env("/home/arusuka/whatsapp-secretary/.env")
 env = {**hermes_env, **wa_env, **os.environ}
@@ -44,7 +46,7 @@ TELEGRAM_CHAT_ID = env.get("WA_TELEGRAM_CHAT_ID") or env.get("TELEGRAM_HOME_CHAN
 
 def fetch_top_5_curated_jobs() -> List[Dict[str, Any]]:
     """Fetches, deduplicates, analyzes, and ranks top 5 jobs based on CV match score."""
-    queries = ["golang", "backend", "kubernetes", "laravel", "php"]
+    queries = ["php", "laravel", "golang", "backend", "nodejs", "kubernetes"]
     all_jobs = []
     seen_urls = set()
 
@@ -69,15 +71,21 @@ def fetch_top_5_curated_jobs() -> List[Dict[str, Any]]:
         match_score = match_res.get("match_percentage", 60)
         matched_skills = match_res.get("matched_skills", [])[:4]
 
-        # Prioritize Golang, Cloud/K8s, Backend roles
+        # Prioritize PHP (Laravel) -> Go (Golang) -> Node.js Backend roles
         boost = 0
         role_low = role.lower()
-        if any(k in role_low for k in ["go", "golang"]):
-            boost += 12
-        if any(k in role_low for k in ["backend", "distributed", "api"]):
-            boost += 8
-        if any(k in role_low for k in ["kubernetes", "cloud", "platform", "s3"]):
+        desc_low = desc.lower()
+        if any(k in role_low or k in desc_low for k in ["php", "laravel", "lumen"]):
+            boost += 18
+        elif any(k in role_low or k in desc_low for k in ["go", "golang"]):
+            boost += 14
+        elif any(k in role_low or k in desc_low for k in ["node", "nodejs", "typescript", "express"]):
+            boost += 9
+
+        if any(k in role_low for k in ["backend", "engineer", "developer"]):
             boost += 6
+        if any(k in role_low for k in ["kubernetes", "cloud", "platform", "s3"]):
+            boost += 4
 
         final_score = min(99, match_score + boost)
 
